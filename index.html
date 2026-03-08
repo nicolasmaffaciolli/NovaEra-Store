@@ -72,7 +72,7 @@ footer a.button:hover{ transform:scale(1.05); box-shadow:0 0 20px #fff;}
 
 <section class="hero" id="hero">
   <h1>Bem-vindo à NovaEra Store</h1>
-  <p>Bem-vindo à NovaEra Store, referência em produtos fitness premium. Todos os itens, mesmo sendo da Shopee, são cuidadosamente selecionados e mantidos sempre atualizados. A loja garante qualidade, estilo e performance para quem busca o melhor em treinos e suplementos. Produtos confiáveis, entrega prática e atendimento de excelência aguardam você.</p>
+  <p>Referência em produtos fitness premium. Qualidade, estilo e performance para quem busca o melhor.</p>
   <button onclick="scrollToCategories()">Ver Categorias</button>
 </section>
 
@@ -89,22 +89,12 @@ footer a.button:hover{ transform:scale(1.05); box-shadow:0 0 20px #fff;}
 <div class="modal" id="modal"><div class="modal-content" id="modal-content"></div></div>
 <div class="admin-info" id="admin-info"></div>
 
-<!-- FIREBASE -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyC8ZivVIX7x9qNPbU2wu7Z4_f2pCWBH8cA",
-  authDomain: "novaera-store.firebaseapp.com",
-  projectId: "novaera-store",
-  storageBucket: "novaera-store.appspot.com",
-  messagingSenderId: "747108246200",
-  appId: "1:747108246200:web:d53b3bc7cfd1a41fb20a4d",
-  measurementId: "G-5C3ZTQ4MS7"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+let categories = JSON.parse(localStorage.getItem('categories')) || [
+  {id:1,name:"Roupas",description:"Moda fitness premium"},
+  {id:2,name:"Acessórios",description:"Equipamentos e estilo"}
+];
+let products = JSON.parse(localStorage.getItem('products')) || [];
 
 let adminLogged=false;
 const categoriesContainer=document.getElementById('categories');
@@ -113,17 +103,22 @@ const modal=document.getElementById('modal');
 const modalContent=document.getElementById('modal-content');
 const adminInfo=document.getElementById('admin-info');
 
-// ===== RENDER =====
-function renderCategories(cats){
+// ===== RENDER CATEGORIES =====
+function renderCategories(filter=''){
   categoriesContainer.innerHTML='';
-  cats.forEach(cat=>{
-    const card=document.createElement('div'); card.className='category-card';
+  const filtered=categories.filter(c=>c.name.toLowerCase().includes(filter.toLowerCase()));
+  filtered.forEach(cat=>{
+    const card=document.createElement('div'); card.classList.add('category-card');
     card.innerHTML=`<h3>${cat.name}</h3><p>${cat.description}</p>`; 
     card.onclick=()=>renderProducts(cat.id);
     if(adminLogged){
       const delBtn=document.createElement('button'); delBtn.textContent='Remover';
-      delBtn.onclick=(e)=>{e.stopPropagation(); removeCategory(cat.id);}
+      delBtn.onclick=(e)=>{ e.stopPropagation(); removeCategory(cat.id); }
       card.appendChild(delBtn);
+
+      const addProdBtn=document.createElement('button'); addProdBtn.textContent='Adicionar Produto';
+      addProdBtn.onclick=(e)=>{ e.stopPropagation(); openAddProductModal(cat.id);}
+      card.appendChild(addProdBtn);
     }
     categoriesContainer.appendChild(card);
   });
@@ -131,168 +126,111 @@ function renderCategories(cats){
     const addBtn=document.createElement('button'); addBtn.textContent="Adicionar Categoria"; 
     addBtn.onclick=()=>openAddCategoryModal(); categoriesContainer.appendChild(addBtn);
 
-    const logoutBtn=document.createElement('button'); logoutBtn.textContent="Sair do Admin";
+    const logoutBtn=document.createElement('button'); logoutBtn.textContent="Sair do Admin"; 
     logoutBtn.onclick=logoutAdmin; categoriesContainer.appendChild(logoutBtn);
   }
 }
 
+// ===== RENDER PRODUCTS =====
 function renderProducts(categoryId){
   productsContainer.innerHTML='';
   categoriesContainer.style.display=categoryId?'none':'grid';
-  db.collection('products').where('categoryId','==',categoryId).get().then(snap=>{
-    snap.forEach(doc=>{
-      const p=doc.data();
-      const card=document.createElement('div'); card.className='product-card';
-      card.innerHTML=`
-        <img src="${p.image}" alt="${p.title}">
-        <h4>${p.title}</h4>
-        <p class="price">R$ ${p.price}</p>
-        <button onclick="window.open('${p.link}','_blank')">Ver Produto</button>
-      `;
-      if(adminLogged){
-        const editBtn=document.createElement('button'); editBtn.textContent="Editar"; editBtn.onclick=()=>openEditProductModal(doc.id,p);
-        const delBtn=document.createElement('button'); delBtn.textContent="Remover"; delBtn.onclick=()=>removeProduct(doc.id,categoryId);
-        card.appendChild(editBtn); card.appendChild(delBtn);
-      }
-      productsContainer.appendChild(card);
-    });
-    if(categoryId){
-      const backBtn=document.createElement('button'); backBtn.textContent="Voltar"; backBtn.style.margin="20px";
-      backBtn.onclick=()=>{ productsContainer.innerHTML=''; categoriesContainer.style.display='grid'; }
-      productsContainer.appendChild(backBtn);
-
-      if(adminLogged){
-        const addProdBtn=document.createElement('button'); addProdBtn.textContent="Adicionar Produto"; addProdBtn.style.margin="20px";
-        addProdBtn.onclick=()=>openAddProductModal(categoryId); productsContainer.appendChild(addProdBtn);
-      }
+  const filtered=products.filter(p=>p.categoryId===categoryId);
+  filtered.forEach(p=>{
+    const card=document.createElement('div'); card.classList.add('product-card');
+    card.innerHTML=`<img src="${p.image}" alt="${p.title}"><h4>${p.title}</h4><p class="price">R$ ${p.price}</p><button onclick="window.open('${p.link}','_blank')">Ver Produto</button>`;
+    if(adminLogged){
+      const delBtn=document.createElement('button'); delBtn.textContent="Remover"; delBtn.onclick=()=>removeProduct(p.id);
+      card.appendChild(delBtn);
     }
+    productsContainer.appendChild(card);
   });
-}
-
-// ===== ADMIN =====
-document.getElementById('admin-btn').addEventListener('click',()=>{
-  const user=prompt("Usuário Admin:");
-  const pass=prompt("Senha Admin:");
-  if(user==="Nicolas" && pass==="123q"){ 
-    adminLogged=true; 
-    adminInfo.style.display='block'; 
-    adminInfo.textContent="Admin logado"; 
-    loadCategories();
-  } else alert("Usuário ou senha incorretos!");
-});
-
-function logoutAdmin(){
-  if(confirm("Deseja sair do Admin?")){
-    adminLogged=false;
-    adminInfo.style.display='none';
-    renderCategories([]);
-    productsContainer.innerHTML='';
+  if(categoryId){
+    const backBtn=document.createElement('button'); backBtn.textContent="Voltar"; backBtn.style.margin="20px";
+    backBtn.onclick=()=>{ productsContainer.innerHTML=''; categoriesContainer.style.display='grid'; }
+    productsContainer.appendChild(backBtn);
   }
 }
+
+// ===== SEARCH =====
+document.getElementById('category-search').addEventListener('input',(e)=>renderCategories(e.target.value));
+function scrollToCategories(){ document.getElementById('categories').scrollIntoView({behavior:'smooth'}); }
+
+// ===== ADMIN LOGIN =====
+document.getElementById('admin-btn').addEventListener('click',()=>{
+  if(adminLogged){ logoutAdmin(); return; }
+  const user=prompt("Usuário Admin:"); const pass=prompt("Senha Admin:");
+  if(user==="Nicolas" && pass==="123q"){ adminLogged=true; adminInfo.style.display='block'; adminInfo.textContent="Admin logado"; renderCategories(); alert("Bem-vindo, Admin!"); }
+  else alert("Usuário ou senha incorretos!");
+});
+function logoutAdmin(){ adminLogged=false; adminInfo.style.display='none'; renderCategories(); productsContainer.innerHTML=''; }
 
 // ===== MODALS =====
 function openAddCategoryModal(){
-  modalContent.innerHTML=`
-    <h3>Adicionar Categoria</h3>
+  modalContent.innerHTML=`<h3>Adicionar Categoria</h3>
     <input type="text" id="new-cat-name" placeholder="Nome">
     <input type="text" id="new-cat-desc" placeholder="Descrição">
     <button class="confirm" onclick="addCategory()">Adicionar</button>
-    <button class="cancel" onclick="closeModal()">Cancelar</button>
-  `; modal.classList.add('active');
+    <button class="cancel" onclick="closeModal()">Cancelar</button>`;
+  modal.classList.add('active');
 }
-
-function addCategory(){
+function addCategory(){ 
   const name=document.getElementById('new-cat-name').value;
   const desc=document.getElementById('new-cat-desc').value;
   if(name){
-    db.collection('categories').add({name,description:desc}).then(()=>{closeModal(); loadCategories();});
+    const id=Date.now(); 
+    categories.push({id,name,description:desc});
+    localStorage.setItem('categories',JSON.stringify(categories));
+    closeModal(); renderCategories();
   }
 }
-
-function removeCategory(id){
+function removeCategory(id){ 
   if(confirm("Deseja remover esta categoria?")){
-    db.collection('categories').doc(id).delete();
-    db.collection('products').where('categoryId','==',id).get().then(snap=>{ snap.forEach(doc=>db.collection('products').doc(doc.id).delete());});
-    loadCategories();
-    productsContainer.innerHTML=''; categoriesContainer.style.display='grid';
+    categories=categories.filter(c=>c.id!==id);
+    products=products.filter(p=>p.categoryId!==id);
+    localStorage.setItem('categories',JSON.stringify(categories));
+    localStorage.setItem('products',JSON.stringify(products));
+    renderCategories(); productsContainer.innerHTML=''; categoriesContainer.style.display='grid';
   }
 }
 
+// ===== MODAL PRODUTO =====
 function openAddProductModal(catId){
-  modalContent.innerHTML=`
-    <h3>Adicionar Produto</h3>
+  modalContent.innerHTML=`<h3>Adicionar Produto</h3>
     <input type="text" id="prod-title" placeholder="Título">
     <input type="number" id="prod-price" placeholder="Preço">
     <input type="text" id="prod-img" placeholder="URL da imagem">
     <input type="text" id="prod-link" placeholder="Link do produto">
     <button class="confirm" onclick="addProduct(${catId})">Adicionar</button>
-    <button class="cancel" onclick="closeModal()">Cancelar</button>
-  `; modal.classList.add('active');
+    <button class="cancel" onclick="closeModal()">Cancelar</button>`;
+  modal.classList.add('active');
 }
-
 function addProduct(catId){
   const title=document.getElementById('prod-title').value;
   const price=parseFloat(document.getElementById('prod-price').value);
   const img=document.getElementById('prod-img').value;
   const link=document.getElementById('prod-link').value;
   if(title && !isNaN(price)){
-    db.collection('products').add({categoryId:catId,title,price,image:img,link}).then(()=>{closeModal(); renderProducts(catId);});
+    const id=Date.now();
+    products.push({id,categoryId:catId,title,price,image:img,link});
+    localStorage.setItem('products',JSON.stringify(products));
+    closeModal(); renderProducts(catId);
   }
 }
 
-function openEditProductModal(prodId,prodData){
-  modalContent.innerHTML=`
-    <h3>Editar Produto</h3>
-    <input type="text" id="prod-title" placeholder="Título" value="${prodData.title}">
-    <input type="number" id="prod-price" placeholder="Preço" value="${prodData.price}">
-    <input type="text" id="prod-img" placeholder="URL da imagem" value="${prodData.image}">
-    <input type="text" id="prod-link" placeholder="Link do produto" value="${prodData.link}">
-    <button class="confirm" onclick="editProduct('${prodId}',${prodData.categoryId})">Salvar</button>
-    <button class="cancel" onclick="closeModal()">Cancelar</button>
-  `; modal.classList.add('active');
-}
-
-function editProduct(prodId,catId){
-  const title=document.getElementById('prod-title').value;
-  const price=parseFloat(document.getElementById('prod-price').value);
-  const img=document.getElementById('prod-img').value;
-  const link=document.getElementById('prod-link').value;
-  if(title && !isNaN(price)){
-    db.collection('products').doc(prodId).update({title,price,image:img,link}).then(()=>{closeModal(); renderProducts(catId);});
-  }
-}
-
-function removeProduct(prodId,catId){
+function removeProduct(id){
   if(confirm("Deseja remover este produto?")){
-    db.collection('products').doc(prodId).delete().then(()=>renderProducts(catId));
+    const catId=products.find(p=>p.id===id)?.categoryId;
+    products=products.filter(p=>p.id!==id);
+    localStorage.setItem('products',JSON.stringify(products));
+    renderProducts(catId);
   }
 }
 
 function closeModal(){ modal.classList.remove('active'); }
 
-function loadCategories(){
-  db.collection('categories').get().then(snap=>{
-    const cats=[];
-    snap.forEach(doc=>{ cats.push({id:doc.id,...doc.data()}); });
-    renderCategories(cats);
-  });
-}
-
-document.getElementById('category-search').addEventListener('input',(e)=>{ 
-  const filter=e.target.value.toLowerCase();
-  db.collection('categories').get().then(snap=>{
-    const cats=[];
-    snap.forEach(doc=>{
-      const data={id:doc.id,...doc.data()};
-      if(data.name.toLowerCase().includes(filter)) cats.push(data);
-    });
-    renderCategories(cats);
-  });
-});
-
-function scrollToCategories(){ document.getElementById('categories').scrollIntoView({behavior:'smooth'}); }
-
-loadCategories();
+// ===== INIT =====
+renderCategories();
 </script>
 </body>
 </html>
