@@ -41,7 +41,14 @@ nav ul li a:hover{background:#FF0000;color:#fff;}
 footer{background: rgba(0,0,0,0.85); padding:30px 20px; text-align:center; border-top:2px solid #FF0000;}
 footer a.button{ background:#FF0000; padding:10px 20px; border-radius:5px; color:#fff; font-weight:bold; margin:5px; display:inline-block; box-shadow:0 0 10px #FF0000;}
 footer a.button:hover{ transform:scale(1.05); box-shadow:0 0 20px #fff;}
-.admin-info{position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.6);border:2px solid #FF0000;padding:5px 10px;border-radius:5px;font-size:0.9rem;display:none;}
+.modal{ position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); display:flex; justify-content:center; align-items:center; visibility:hidden; opacity:0; transition: all 0.3s ease; z-index:2000;}
+.modal.active{ visibility:visible; opacity:1; }
+.modal-content{ background: rgba(0,0,0,0.9); border:2px solid #FF0000; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center;}
+.modal-content input{ width:80%; padding:8px; margin:10px 0; border:2px solid #FF0000; border-radius:5px; background:transparent; color:#fff;}
+.modal-content button{ margin:5px; padding:8px 15px; border:none; border-radius:5px; font-weight:bold;}
+.modal-content .confirm{ background:#FF0000; color:#fff;}
+.modal-content .cancel{ background:#fff; color:#FF0000;}
+.admin-info{ position:fixed; bottom:10px; right:10px; background: rgba(0,0,0,0.6); border:2px solid #FF0000; padding:5px 10px; border-radius:5px; font-size:0.9rem; display:none; z-index:1000;}
 @media(max-width:768px){.hero h1{ font-size:2rem;}.hero p{ font-size:1rem;}}
 </style>
 </head>
@@ -51,12 +58,16 @@ footer a.button:hover{ transform:scale(1.05); box-shadow:0 0 20px #fff;}
   <div class="logo"><img src="https://images.unsplash.com/photo-1599058917210-9149fa7c7f4d?auto=format&fit=crop&w=200&q=80" alt="Logo NovaEra Store"></div>
   <nav>
     <ul>
+      <li><a href="#hero">Início</a></li>
       <li><a href="#categories">Produtos</a></li>
       <li><a href="#contact">Contato</a></li>
       <li><a href="https://instagram.com/novaerastore2026" target="_blank">Instagram</a></li>
     </ul>
   </nav>
-  <button id="admin-btn">Admin</button>
+  <div class="search-bar">
+    <input type="text" id="category-search" placeholder="Buscar categorias...">
+    <button id="admin-btn">Admin</button>
+  </div>
 </header>
 
 <section class="hero" id="hero">
@@ -75,31 +86,39 @@ footer a.button:hover{ transform:scale(1.05); box-shadow:0 0 20px #fff;}
   <a href="https://instagram.com/novaerastore2026" target="_blank" class="button">Instagram</a>
 </footer>
 
-<div class="admin-info" id="admin-info">Admin logado</div>
+<div class="modal" id="modal"><div class="modal-content" id="modal-content"></div></div>
+<div class="admin-info" id="admin-info"></div>
+
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// ===== DADOS =====
-let categories = [
-  {id:1,name:"Roupas",description:"Moda fitness premium"},
-  {id:2,name:"Acessórios",description:"Equipamentos e estilo"}
-];
-let products = [
-  {id:1,categoryId:1,title:"Camisa Dry Fit",price:120,image:"https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=400&q=80",link:"#"},
-  {id:2,categoryId:1,title:"Regata Fitness",price:80,image:"https://images.unsplash.com/photo-1593032465173-99a308d4a6b0?auto=format&fit=crop&w=400&q=80",link:"#"},
-  {id:3,categoryId:2,title:"Halteres",price:300,image:"https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=400&q=80",link:"#"}
-];
-let adminLogged=false;
+const firebaseConfig = {
+  apiKey: "AIzaSyC8ZivVIX7x9qNPbU2wu7Z4_f2pCWBH8cA",
+  authDomain: "novaera-store.firebaseapp.com",
+  projectId: "novaera-store",
+  storageBucket: "novaera-store.appspot.com",
+  messagingSenderId: "747108246200",
+  appId: "1:747108246200:web:d53b3bc7cfd1a41fb20a4d",
+  measurementId: "G-5C3ZTQ4MS7"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-const categoriesContainer = document.getElementById('categories');
-const productsContainer = document.getElementById('products');
-const adminInfo = document.getElementById('admin-info');
+let adminLogged=false;
+const categoriesContainer=document.getElementById('categories');
+const productsContainer=document.getElementById('products');
+const modal=document.getElementById('modal');
+const modalContent=document.getElementById('modal-content');
+const adminInfo=document.getElementById('admin-info');
 
 // ===== RENDER =====
-function renderCategories(){
+function renderCategories(cats){
   categoriesContainer.innerHTML='';
-  categories.forEach(cat=>{
+  cats.forEach(cat=>{
     const card=document.createElement('div'); card.className='category-card';
-    card.innerHTML=`<h3>${cat.name}</h3><p>${cat.description}</p>`;
+    card.innerHTML=`<h3>${cat.name}</h3><p>${cat.description}</p>`; 
     card.onclick=()=>renderProducts(cat.id);
     if(adminLogged){
       const delBtn=document.createElement('button'); delBtn.textContent='Remover';
@@ -109,57 +128,171 @@ function renderCategories(){
     categoriesContainer.appendChild(card);
   });
   if(adminLogged){
-    const addBtn=document.createElement('button'); addBtn.textContent='Adicionar Categoria';
-    addBtn.onclick=addCategory; categoriesContainer.appendChild(addBtn);
+    const addBtn=document.createElement('button'); addBtn.textContent="Adicionar Categoria"; 
+    addBtn.onclick=()=>openAddCategoryModal(); categoriesContainer.appendChild(addBtn);
+
+    const logoutBtn=document.createElement('button'); logoutBtn.textContent="Sair do Admin";
+    logoutBtn.onclick=logoutAdmin; categoriesContainer.appendChild(logoutBtn);
   }
 }
 
-function renderProducts(catId){
+function renderProducts(categoryId){
   productsContainer.innerHTML='';
-  const filtered = products.filter(p=>p.categoryId===catId);
-  filtered.forEach(p=>{
-    const card=document.createElement('div'); card.className='product-card';
-    card.innerHTML=`<img src="${p.image}" style="height:150px;object-fit:cover;"><h4>${p.title}</h4><p>R$ ${p.price}</p><button onclick="window.open('${p.link}','_blank')">Ver Produto</button>`;
-    if(adminLogged){
-      const delBtn=document.createElement('button'); delBtn.textContent='Remover';
-      delBtn.onclick=()=>removeProduct(p.id); card.appendChild(delBtn);
+  categoriesContainer.style.display=categoryId?'none':'grid';
+  db.collection('products').where('categoryId','==',categoryId).get().then(snap=>{
+    snap.forEach(doc=>{
+      const p=doc.data();
+      const card=document.createElement('div'); card.className='product-card';
+      card.innerHTML=`
+        <img src="${p.image}" alt="${p.title}">
+        <h4>${p.title}</h4>
+        <p class="price">R$ ${p.price}</p>
+        <button onclick="window.open('${p.link}','_blank')">Ver Produto</button>
+      `;
+      if(adminLogged){
+        const editBtn=document.createElement('button'); editBtn.textContent="Editar"; editBtn.onclick=()=>openEditProductModal(doc.id,p);
+        const delBtn=document.createElement('button'); delBtn.textContent="Remover"; delBtn.onclick=()=>removeProduct(doc.id,categoryId);
+        card.appendChild(editBtn); card.appendChild(delBtn);
+      }
+      productsContainer.appendChild(card);
+    });
+    if(categoryId){
+      const backBtn=document.createElement('button'); backBtn.textContent="Voltar"; backBtn.style.margin="20px";
+      backBtn.onclick=()=>{ productsContainer.innerHTML=''; categoriesContainer.style.display='grid'; }
+      productsContainer.appendChild(backBtn);
+
+      if(adminLogged){
+        const addProdBtn=document.createElement('button'); addProdBtn.textContent="Adicionar Produto"; addProdBtn.style.margin="20px";
+        addProdBtn.onclick=()=>openAddProductModal(categoryId); productsContainer.appendChild(addProdBtn);
+      }
     }
-    productsContainer.appendChild(card);
   });
 }
 
 // ===== ADMIN =====
-document.getElementById('admin-btn').addEventListener('click', ()=>{
+document.getElementById('admin-btn').addEventListener('click',()=>{
   const user=prompt("Usuário Admin:");
   const pass=prompt("Senha Admin:");
-  if(user==='Nicolas' && pass==='123q'){
-    adminLogged=true; adminInfo.style.display='block'; alert('Admin logado!');
-    renderCategories();
-  } else alert('Usuário ou senha incorretos!');
+  if(user==="Nicolas" && pass==="123q"){ 
+    adminLogged=true; 
+    adminInfo.style.display='block'; 
+    adminInfo.textContent="Admin logado"; 
+    loadCategories();
+  } else alert("Usuário ou senha incorretos!");
 });
 
-// ===== CRUD =====
-function addCategory(){ 
-  const name=prompt("Nome da categoria:");
-  const desc=prompt("Descrição:");
-  if(name){ categories.push({id:Date.now(),name,description:desc}); renderCategories(); }
+function logoutAdmin(){
+  if(confirm("Deseja sair do Admin?")){
+    adminLogged=false;
+    adminInfo.style.display='none';
+    renderCategories([]);
+    productsContainer.innerHTML='';
+  }
 }
 
-function removeCategory(id){ 
-  categories = categories.filter(c=>c.id!==id);
-  products = products.filter(p=>p.categoryId!==id);
-  renderCategories(); productsContainer.innerHTML='';
+// ===== MODALS =====
+function openAddCategoryModal(){
+  modalContent.innerHTML=`
+    <h3>Adicionar Categoria</h3>
+    <input type="text" id="new-cat-name" placeholder="Nome">
+    <input type="text" id="new-cat-desc" placeholder="Descrição">
+    <button class="confirm" onclick="addCategory()">Adicionar</button>
+    <button class="cancel" onclick="closeModal()">Cancelar</button>
+  `; modal.classList.add('active');
 }
 
-function removeProduct(id){
-  products = products.filter(p=>p.id!==id); renderCategories(); productsContainer.innerHTML='';
+function addCategory(){
+  const name=document.getElementById('new-cat-name').value;
+  const desc=document.getElementById('new-cat-desc').value;
+  if(name){
+    db.collection('categories').add({name,description:desc}).then(()=>{closeModal(); loadCategories();});
+  }
 }
 
-// ===== SCROLL =====
+function removeCategory(id){
+  if(confirm("Deseja remover esta categoria?")){
+    db.collection('categories').doc(id).delete();
+    db.collection('products').where('categoryId','==',id).get().then(snap=>{ snap.forEach(doc=>db.collection('products').doc(doc.id).delete());});
+    loadCategories();
+    productsContainer.innerHTML=''; categoriesContainer.style.display='grid';
+  }
+}
+
+function openAddProductModal(catId){
+  modalContent.innerHTML=`
+    <h3>Adicionar Produto</h3>
+    <input type="text" id="prod-title" placeholder="Título">
+    <input type="number" id="prod-price" placeholder="Preço">
+    <input type="text" id="prod-img" placeholder="URL da imagem">
+    <input type="text" id="prod-link" placeholder="Link do produto">
+    <button class="confirm" onclick="addProduct(${catId})">Adicionar</button>
+    <button class="cancel" onclick="closeModal()">Cancelar</button>
+  `; modal.classList.add('active');
+}
+
+function addProduct(catId){
+  const title=document.getElementById('prod-title').value;
+  const price=parseFloat(document.getElementById('prod-price').value);
+  const img=document.getElementById('prod-img').value;
+  const link=document.getElementById('prod-link').value;
+  if(title && !isNaN(price)){
+    db.collection('products').add({categoryId:catId,title,price,image:img,link}).then(()=>{closeModal(); renderProducts(catId);});
+  }
+}
+
+function openEditProductModal(prodId,prodData){
+  modalContent.innerHTML=`
+    <h3>Editar Produto</h3>
+    <input type="text" id="prod-title" placeholder="Título" value="${prodData.title}">
+    <input type="number" id="prod-price" placeholder="Preço" value="${prodData.price}">
+    <input type="text" id="prod-img" placeholder="URL da imagem" value="${prodData.image}">
+    <input type="text" id="prod-link" placeholder="Link do produto" value="${prodData.link}">
+    <button class="confirm" onclick="editProduct('${prodId}',${prodData.categoryId})">Salvar</button>
+    <button class="cancel" onclick="closeModal()">Cancelar</button>
+  `; modal.classList.add('active');
+}
+
+function editProduct(prodId,catId){
+  const title=document.getElementById('prod-title').value;
+  const price=parseFloat(document.getElementById('prod-price').value);
+  const img=document.getElementById('prod-img').value;
+  const link=document.getElementById('prod-link').value;
+  if(title && !isNaN(price)){
+    db.collection('products').doc(prodId).update({title,price,image:img,link}).then(()=>{closeModal(); renderProducts(catId);});
+  }
+}
+
+function removeProduct(prodId,catId){
+  if(confirm("Deseja remover este produto?")){
+    db.collection('products').doc(prodId).delete().then(()=>renderProducts(catId));
+  }
+}
+
+function closeModal(){ modal.classList.remove('active'); }
+
+function loadCategories(){
+  db.collection('categories').get().then(snap=>{
+    const cats=[];
+    snap.forEach(doc=>{ cats.push({id:doc.id,...doc.data()}); });
+    renderCategories(cats);
+  });
+}
+
+document.getElementById('category-search').addEventListener('input',(e)=>{ 
+  const filter=e.target.value.toLowerCase();
+  db.collection('categories').get().then(snap=>{
+    const cats=[];
+    snap.forEach(doc=>{
+      const data={id:doc.id,...doc.data()};
+      if(data.name.toLowerCase().includes(filter)) cats.push(data);
+    });
+    renderCategories(cats);
+  });
+});
+
 function scrollToCategories(){ document.getElementById('categories').scrollIntoView({behavior:'smooth'}); }
 
-// ===== INIT =====
-renderCategories();
+loadCategories();
 </script>
 </body>
 </html>
