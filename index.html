@@ -142,6 +142,7 @@ footer a.button:hover{ transform:scale(1.05); box-shadow:0 0 20px #fff;}
 }
 
 </style>
+
 </head>
 <body>
 
@@ -180,18 +181,26 @@ footer a.button:hover{ transform:scale(1.05); box-shadow:0 0 20px #fff;}
 <div class="modal" id="modal"><div class="modal-content" id="modal-content"></div></div>
 <div class="admin-info" id="admin-info"></div>
 
+<!-- Firebase Scripts -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-let categories = JSON.parse(localStorage.getItem('categories')) || [
-  { id:1, name:"Roupas", description:"Moda fitness premium" },
-  { id:2, name:"Acessórios", description:"Equipamentos e estilo" }
-];
+  const firebaseConfig = {
+    apiKey: "AIzaSyC8ZivVIX7x9qNPbU2wu7Z4_f2pCWBH8cA",
+    authDomain: "novaera-store.firebaseapp.com",
+    projectId: "novaera-store",
+    storageBucket: "novaera-store.firebasestorage.app",
+    messagingSenderId: "747108246200",
+    appId: "1:747108246200:web:d53b3bc7cfd1a41fb20a4d",
+    measurementId: "G-5C3ZTQ4MS7"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+</script>
 
-let products = JSON.parse(localStorage.getItem('products')) || [
-  { id:1, categoryId:1, title:"Camisa Dry Fit", price:120, image:"https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=400&q=80", link:"#"},
-  { id:2, categoryId:1, title:"Regata Fitness", price:80, image:"https://images.unsplash.com/photo-1593032465173-99a308d4a6b0?auto=format&fit=crop&w=400&q=80", link:"#"},
-  { id:3, categoryId:2, title:"Halteres", price:300, image:"https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=400&q=80", link:"#"}
-];
-
+<script>
+let categories = [];
+let products = [];
 let adminLogged=false;
 const categoriesContainer=document.getElementById('categories');
 const productsContainer=document.getElementById('products');
@@ -199,13 +208,29 @@ const modal=document.getElementById('modal');
 const modalContent=document.getElementById('modal-content');
 const adminInfo=document.getElementById('admin-info');
 
+function fetchCategoriesFromFirebase(){
+  db.collection('categories').get().then(snapshot=>{
+    categories = snapshot.docs.map(doc=>({id:doc.id,...doc.data()}));
+    renderCategories();
+  });
+}
+
+function fetchProductsFromFirebase(){
+  db.collection('products').get().then(snapshot=>{
+    products = snapshot.docs.map(doc=>({id:doc.id,...doc.data()}));
+    renderProducts();
+  });
+}
+
 function renderCategories(filter=''){
   categoriesContainer.innerHTML='';
-  const filtered=categories.filter(c=>c.name.toLowerCase().includes(filter.toLowerCase()));
+  const filtered = categories.filter(c=>c.name.toLowerCase().includes(filter.toLowerCase()));
   filtered.forEach(cat=>{
-    const card=document.createElement('div'); card.classList.add('category-card');
-    card.innerHTML=`<h3>${cat.name}</h3><p>${cat.description}</p>`; 
-    card.onclick=()=>renderProducts(cat.id); categoriesContainer.appendChild(card);
+    const card = document.createElement('div');
+    card.classList.add('category-card');
+    card.innerHTML=`<h3>${cat.name}</h3><p>${cat.description}</p>`;
+    card.onclick=()=>renderProducts(cat.id);
+    categoriesContainer.appendChild(card);
     if(adminLogged){
       const delBtn=document.createElement('button'); delBtn.textContent='Remover';
       delBtn.onclick=(e)=>{e.stopPropagation(); removeCategory(cat.id);}
@@ -252,12 +277,27 @@ document.getElementById('category-search').addEventListener('input',(e)=>{ rende
 function scrollToCategories(){ document.getElementById('categories').scrollIntoView({behavior:'smooth'}); }
 
 function adminLogin(){
-  const user=prompt("Usuário Admin:"); const pass=prompt("Senha Admin:");
+  const user=prompt("Usuário Admin:"); 
+  const pass=prompt("Senha Admin:");
   if(user==="Nicolas" && pass==="123q"){ 
-    adminLogged=true; adminInfo.style.display='block'; adminInfo.textContent="Admin logado"; alert("Bem-vindo, Admin!"); 
-    renderCategories();
+    adminLogged=true; 
+    adminInfo.style.display='block'; 
+    adminInfo.innerHTML=`Admin logado <button onclick="adminLogout()">Sair</button>`;
+    alert("Bem-vindo, Admin!"); 
+    fetchCategoriesFromFirebase();
+    fetchProductsFromFirebase();
+  } else { 
+    alert("Usuário ou senha incorretos!"); 
   }
-  else{ alert("Usuário ou senha incorretos!"); }
+}
+
+function adminLogout(){
+  if(confirm("Deseja realmente sair, usuário Admin?")){
+    adminLogged=false;
+    adminInfo.style.display='none';
+    fetchCategoriesFromFirebase();
+    productsContainer.innerHTML='';
+  }
 }
 
 function openAddCategoryModal(){
@@ -267,25 +307,31 @@ function openAddCategoryModal(){
     <input type="text" id="new-cat-desc" placeholder="Descrição">
     <button class="confirm" onclick="addCategory()">Adicionar</button>
     <button class="cancel" onclick="closeModal()">Cancelar</button>
-  `; modal.classList.add('active');
+  `;
+  modal.classList.add('active');
 }
+
 function addCategory(){ 
   const name=document.getElementById('new-cat-name').value; 
   const desc=document.getElementById('new-cat-desc').value;
   if(name){ 
-    const id=Date.now(); 
-    categories.push({id,name,description:desc}); 
-    localStorage.setItem('categories',JSON.stringify(categories)); 
-    closeModal(); renderCategories();
+    db.collection('categories').add({name,description:desc}).then(()=>{
+      closeModal(); 
+      fetchCategoriesFromFirebase();
+    });
   }
 }
+
 function removeCategory(id){ 
   if(confirm("Deseja remover esta categoria?")){ 
-    categories=categories.filter(c=>c.id!==id); 
-    products=products.filter(p=>p.categoryId!==id); 
-    localStorage.setItem('categories',JSON.stringify(categories)); 
-    localStorage.setItem('products',JSON.stringify(products)); 
-    renderCategories(); productsContainer.innerHTML=''; categoriesContainer.style.display='grid'; 
+    db.collection('categories').doc(id).delete().then(()=>{
+      db.collection('products').where('categoryId','==',id).get().then(snapshot=>{
+        snapshot.forEach(doc=>db.collection('products').doc(doc.id).delete());
+        fetchCategoriesFromFirebase();
+        productsContainer.innerHTML='';
+        categoriesContainer.style.display='grid';
+      });
+    });
   }
 }
 
@@ -296,33 +342,36 @@ function openAddProductModal(catId){
     <input type="number" id="prod-price" placeholder="Preço">
     <input type="text" id="prod-img" placeholder="URL da imagem">
     <input type="text" id="prod-link" placeholder="Link do produto">
-    <button class="confirm" onclick="addProduct(${catId})">Adicionar</button>
+    <button class="confirm" onclick="addProduct('${catId}')">Adicionar</button>
     <button class="cancel" onclick="closeModal()">Cancelar</button>
-  `; modal.classList.add('active');
+  `; 
+  modal.classList.add('active');
 }
+
 function addProduct(catId){ 
   const title=document.getElementById('prod-title').value; 
   const price=parseFloat(document.getElementById('prod-price').value); 
   const img=document.getElementById('prod-img').value; 
   const link=document.getElementById('prod-link').value; 
   if(title && !isNaN(price)){ 
-    const id=Date.now(); 
-    products.push({id,categoryId:catId,title,price,image:img,link}); 
-    localStorage.setItem('products',JSON.stringify(products)); 
-    closeModal(); renderProducts(catId); 
+    db.collection('products').add({categoryId:catId,title,price,image:img,link}).then(()=>{
+      closeModal(); 
+      fetchProductsFromFirebase();
+    });
   }
 }
+
 function removeProduct(id){ 
   if(confirm("Deseja remover este produto?")){ 
-    const catId=products.find(p=>p.id===id)?.categoryId; 
-    products=products.filter(p=>p.id!==id); 
-    localStorage.setItem('products',JSON.stringify(products)); 
-    renderProducts(catId); 
+    db.collection('products').doc(id).delete().then(()=>{
+      fetchProductsFromFirebase();
+    });
   }
 }
+
 function closeModal(){ modal.classList.remove('active'); }
 
-renderCategories();
+fetchCategoriesFromFirebase();
 </script>
 
 </body>
