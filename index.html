@@ -7,6 +7,9 @@
 
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
 
+<!-- Favicon estilo academia vermelho/preto/branco -->
+<link rel="icon" href="https://i.imgur.com/a_circular_high_contrast_graphic_logo_scene_dark.png" type="image/png">
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
@@ -125,20 +128,17 @@ categoriesContainer.innerHTML=""
 prodCatSelect.innerHTML=""
 removeCatSelect.innerHTML=""
 categories.forEach(cat=>{
-// cards
 const card=document.createElement("div")
 card.className="category-card"
 card.innerHTML=`<h3>${cat.name}</h3><p>${cat.description}</p>`
 card.onclick=()=>renderProducts(cat.id)
 categoriesContainer.appendChild(card)
 
-// dropdown adicionar produto
 const optionProd = document.createElement("option")
 optionProd.value = cat.id
 optionProd.textContent = cat.name
 prodCatSelect.appendChild(optionProd)
 
-// dropdown remover categoria
 const optionRemove = document.createElement("option")
 optionRemove.value = cat.id
 optionRemove.textContent = cat.name
@@ -157,7 +157,6 @@ productsContainer.appendChild(card)
 })
 }
 
-// Firebase listeners
 db.collection("categories").onSnapshot(snapshot=>{
 categories=[]
 snapshot.forEach(doc=>categories.push({id:doc.id,...doc.data()}))
@@ -169,7 +168,6 @@ products=[]
 snapshot.forEach(doc=>products.push({id:doc.id,...doc.data()}))
 })
 
-// Admin login
 document.getElementById("admin-btn").onclick=()=>{
 const user=prompt("Usuário")
 const pass=prompt("Senha")
@@ -180,14 +178,12 @@ alert("Admin ativado")
 }
 }
 
-// Logout admin
 document.getElementById("logout-btn").onclick=()=>{
 admin=false
 adminPanel.style.display="none"
 alert("Você saiu do modo admin")
 }
 
-// Adicionar categoria
 document.getElementById("add-cat-btn").onclick=()=>{
 const name=document.getElementById("new-cat-name").value
 const desc=document.getElementById("new-cat-desc").value
@@ -200,7 +196,6 @@ alert("Preencha todos os campos da categoria")
 }
 }
 
-// Remover categoria
 document.getElementById("remove-cat-btn").onclick=()=>{
 const catId = removeCatSelect.value
 if(!catId) return alert("Selecione uma categoria para remover!")
@@ -211,7 +206,6 @@ alert("Categoria removida!")
 }
 }
 
-// Adicionar produto
 document.getElementById("add-prod-btn").onclick=()=>{
 const title=document.getElementById("prod-title").value
 const price=document.getElementById("prod-price").value
